@@ -21,8 +21,8 @@ const INITIAL_GEAR = [
 const TEAM = ["Alissa Prcevich","André Rodrigues","Andy Lloyd","Chloe Adam","Christian Love","Elliott Small","Jazel Antiporda","Jess Edwards","Jess Holmes","Lucille Figueroa","Lydia Proudlove","Matt Hodges","Michael Amoroso","Neill Pagdanganan","Nem Stankovic","Paige Cooper","Raphael Rigos"];
 const GROUPS     = ["Shared Pool","Campaigns Team","Social Team","Growth","Production COE"];
 const ALL_GROUPS = ["All",...GROUPS];
-const CATS       = ["Camera","Lighting","Audio","Rigging","Power","Accessories"];
-const CAT_ICON   = {Camera:"📹",Lighting:"💡",Audio:"🎙️",Rigging:"🎛️",Power:"🔋",Accessories:"🎒"};
+const CATS       = ["Camera","Lenses","Lighting","Audio","Rigging","Support","Power","Accessories"];
+const CAT_ICON   = {Camera:"📷",Lenses:"🔭",Lighting:"💡",Audio:"🎙",Rigging:"🔩",Support:"⚙️",Power:"🔋",Accessories:"🎒"};
 const STATUS = {
   available:  {label:"Available",   bg:"#E8F9EE",dot:"#34C759",text:"#1A7A3A"},
   checkedout: {label:"Checked Out", bg:"#FFF3E0",dot:"#FF9500",text:"#A04000"},
