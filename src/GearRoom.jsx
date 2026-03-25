@@ -177,7 +177,7 @@ export default function GearRoom(){
   const[gear,setGear]=useState(()=>{try{const s=localStorage.getItem("gr2");return s?JSON.parse(s):INITIAL_GEAR}catch{return INITIAL_GEAR}});
   const[webhook,setWebhook]=useState(()=>localStorage.getItem("gr_wh")||"");
   const[channel,setChannel]=useState(()=>localStorage.getItem("gr_ch")||"#cameranauts");
-  const[activeGroup,setActiveGroup]=useState("All");
+  const[activeCat,setActiveCat]=useState("All");
   const[search,setSearch]=useState("");
   const[modal,setModal]=useState(null);
   const[sel,setSel]=useState(null);
@@ -190,7 +190,7 @@ export default function GearRoom(){
   const close=()=>{setModal(null);setSel(null)};
   const showToast=m=>setToast(m);
 
-  const filtered=gear.filter(g=>(activeGroup==="All"||g.group===activeGroup)&&(!search||g.name.toLowerCase().includes(search.toLowerCase())));
+  const filtered=gear.filter(g=>(activeCat==="All"||g.cat===activeCat)&&(!search||g.name.toLowerCase().includes(search.toLowerCase())));
   const stats={av:gear.filter(g=>g.status==="available").length,out:gear.filter(g=>g.status==="checkedout").length,iss:gear.filter(g=>g.status==="damaged").length};
 
   const openCard=item=>{setSel(item);setModal(item.status==="available"?"checkout":item.status==="checkedout"?"return":"damaged")};
@@ -248,14 +248,21 @@ export default function GearRoom(){
           {search&&<button onClick={()=>setSearch("")} style={{border:"none",background:"#C7C7CC",borderRadius:"50%",width:18,height:18,color:"#fff",fontSize:11,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>✕</button>}
         </div>
         <div style={{display:"flex",gap:6,overflowX:"auto",paddingBottom:14,scrollbarWidth:"none"}}>
-          {ALL_GROUPS.map(g=><button key={g} onClick={()=>setActiveGroup(g)} style={{flexShrink:0,padding:"7px 14px",borderRadius:20,border:"none",fontSize:13,fontWeight:600,cursor:"pointer",background:activeGroup===g?"#007AFF":"#F2F2F7",color:activeGroup===g?"#fff":"#8E8E93"}}>{g}</button>)}
+          {["All",...CATS].map(c=><button key={c} onClick={()=>setActiveCat(c)} style={{flexShrink:0,padding:"7px 14px",borderRadius:20,border:"none",fontSize:13,fontWeight:600,cursor:"pointer",background:activeCat===c?"#007AFF":"#F2F2F7",color:activeCat===c?"#fff":"#8E8E93"}}>{c==="All"?c:(CAT_ICON[c]||"")+" "+c}</button>)}
         </div>
       </div>
 
-      <div style={{padding:"16px 16px 120px",display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(165px,1fr))",gap:12}}>
+      <div style={{padding:"8px 16px 120px"}}>
         {filtered.length===0
-          ?<div style={{gridColumn:"1/-1",textAlign:"center",padding:"60px 20px",color:"#8E8E93"}}><div style={{fontSize:32,marginBottom:12}}>📦</div><div style={{fontSize:16,fontWeight:600,marginBottom:6}}>No gear here yet</div><div style={{fontSize:14}}>Tap + to add equipment</div></div>
-          :filtered.map(item=><GearCard key={item.id} item={item} onClick={openCard} onLongPress={openEdit}/>)
+          ?<div style={{textAlign:"center",padding:"60px 20px",color:"#8E8E93"}}><div style={{fontSize:32,marginBottom:12}}>📦</div><div style={{fontSize:16,fontWeight:600,marginBottom:6}}>No gear here yet</div><div style={{fontSize:14}}>Tap + to add equipment</div></div>
+          :CATS.filter(cat=>filtered.some(i=>i.cat===cat)).map(cat=>(
+            <div key={cat}>
+              <SLabel>{(CAT_ICON[cat]||"📦")+" "+cat}</SLabel>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(165px,1fr))",gap:12,padding:"4px 0 16px"}}>
+                {filtered.filter(i=>i.cat===cat).map(item=><GearCard key={item.id} item={item} onClick={openCard} onLongPress={openEdit}/>)}
+              </div>
+            </div>
+          ))
         }
       </div>
 
