@@ -17,20 +17,20 @@ const INITIAL_GEAR = [
   { id:14, name:"USB-C Hub 4-in-1",            qty:2, cat:"Accessories", group:"Campaigns Team", status:"available", who:null, ret:null, notes:"" },
   { id:15, name:"Tether Block",                qty:1, cat:"Accessories", group:"Campaigns Team", status:"available", who:null, ret:null, notes:"" },
   { id:16, name:"Canon R5C Kit #1", type:"kit", qty:1, cat:"Camera", group:"Campaigns Team", status:"available", who:null, ret:null, notes:"", contents:[
-    {cid:1, name:"Canon R5C Body",     status:"available", who:null, ret:null},
-    {cid:2, name:"24-70mm f/2.8 Lens", status:"available", who:null, ret:null},
-    {cid:3, name:"50mm f/1.8 Lens",   status:"available", who:null, ret:null},
-    {cid:4, name:"Smallrig Cage",      status:"available", who:null, ret:null},
-    {cid:5, name:"Battery Grip",       status:"available", who:null, ret:null},
-    {cid:6, name:"V-Mount Battery",    status:"available", who:null, ret:null},
+    {cid:1, name:"Canon R5C Body",     cat:"Camera",      status:"available", who:null, ret:null},
+    {cid:2, name:"24-70mm f/2.8 Lens", cat:"Lenses",      status:"available", who:null, ret:null},
+    {cid:3, name:"50mm f/1.8 Lens",   cat:"Lenses",      status:"available", who:null, ret:null},
+    {cid:4, name:"Smallrig Cage",      cat:"Rigging",     status:"available", who:null, ret:null},
+    {cid:5, name:"Battery Grip",       cat:"Power",       status:"available", who:null, ret:null},
+    {cid:6, name:"V-Mount Battery",    cat:"Power",       status:"available", who:null, ret:null},
   ]},
   { id:17, name:"Canon R5C Kit #2", type:"kit", qty:1, cat:"Camera", group:"Campaigns Team", status:"available", who:null, ret:null, notes:"", contents:[
-    {cid:1, name:"Canon R5C Body",     status:"available", who:null, ret:null},
-    {cid:2, name:"24-70mm f/2.8 Lens", status:"available", who:null, ret:null},
-    {cid:3, name:"50mm f/1.8 Lens",   status:"available", who:null, ret:null},
-    {cid:4, name:"Smallrig Cage",      status:"available", who:null, ret:null},
-    {cid:5, name:"Battery Grip",       status:"available", who:null, ret:null},
-    {cid:6, name:"V-Mount Battery",    status:"available", who:null, ret:null},
+    {cid:1, name:"Canon R5C Body",     cat:"Camera",      status:"available", who:null, ret:null},
+    {cid:2, name:"24-70mm f/2.8 Lens", cat:"Lenses",      status:"available", who:null, ret:null},
+    {cid:3, name:"50mm f/1.8 Lens",   cat:"Lenses",      status:"available", who:null, ret:null},
+    {cid:4, name:"Smallrig Cage",      cat:"Rigging",     status:"available", who:null, ret:null},
+    {cid:5, name:"Battery Grip",       cat:"Power",       status:"available", who:null, ret:null},
+    {cid:6, name:"V-Mount Battery",    cat:"Power",       status:"available", who:null, ret:null},
   ]},
 ];
 
@@ -171,16 +171,22 @@ function KitSheet({item,gear,setGear,webhook,onEdit,onClose,showToast}){
     </div>
     <Section mt={16}>
       <SLabel>Contents ({contents.length})</SLabel>
-      {contents.map((c,i)=>(
-        <div key={c.cid} onClick={()=>{setPerson("");setRet(todayPlus(1));setSubModal({type:c.status==="available"?"checkout":"return",cid:c.cid})}}
-          style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"13px 16px",cursor:"pointer",borderTop:i>0?"1px solid #F2F2F7":"none",background:c.status!=="available"?"#FFFAF5":"transparent"}}>
-          <div>
-            <div style={{fontSize:15,color:"#1C1C1E",fontWeight:500}}>{c.name}</div>
-            {c.status==="checkedout"&&<div style={{fontSize:12,color:"#FF9500",marginTop:2}}>Out with {c.who} · Back {fmt(c.ret)}</div>}
+      {contents.length===0
+        ?<div style={{padding:"20px 16px",textAlign:"center",color:"#8E8E93",fontSize:14,lineHeight:1.6}}>No items yet.<br/>Tap <span style={{color:"#007AFF",fontWeight:600}}>Edit</span> to add contents to this kit.</div>
+        :contents.map((c,i)=>(
+          <div key={c.cid} onClick={()=>{setPerson("");setRet(todayPlus(1));setSubModal({type:c.status==="available"?"checkout":"return",cid:c.cid})}}
+            style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"13px 16px",cursor:"pointer",borderTop:i>0?"1px solid #F2F2F7":"none",background:c.status!=="available"?"#FFFAF5":"transparent"}}>
+            <div style={{display:"flex",alignItems:"center",gap:10}}>
+              <span style={{fontSize:20,flexShrink:0}}>{CAT_ICON[c.cat]||"📦"}</span>
+              <div>
+                <div style={{fontSize:15,color:"#1C1C1E",fontWeight:500}}>{c.name}</div>
+                {c.status==="checkedout"&&<div style={{fontSize:12,color:"#FF9500",marginTop:2}}>Out with {c.who} · Back {fmt(c.ret)}</div>}
+              </div>
+            </div>
+            <Badge status={c.status}/>
           </div>
-          <Badge status={c.status}/>
-        </div>
-      ))}
+        ))
+      }
     </Section>
     {available.length>0&&<Btn label={available.length===contents.length?"Check Out Full Kit":`Check Out ${available.length} Available Items`} onClick={()=>{setPerson("");setRet(todayPlus(1));setSubModal({type:"checkout",cid:"all"})}} mt={16}/>}
     <GhostBtn label="Close" onClick={onClose}/>
@@ -216,13 +222,19 @@ function EditSheet({item,isNew,onSave,onDelete,onClose}){
       ?<Section>
           <SLabel>Kit Contents</SLabel>
           {f.contents.map((c,i)=>(
-            <div key={i} style={{display:"flex",gap:8,padding:"4px 16px 4px",alignItems:"center"}}>
-              <SInput value={c.name} onChange={e=>s("contents",f.contents.map((x,j)=>j===i?{...x,name:e.target.value}:x))} placeholder={`Item ${i+1}`}/>
-              <button onClick={()=>s("contents",f.contents.filter((_,j)=>j!==i))} style={{border:"none",background:"none",fontSize:20,color:"#FF3B30",cursor:"pointer",flexShrink:0,paddingBottom:2}}>✕</button>
+            <div key={i} style={{borderTop:i>0?"1px solid #F2F2F7":"none",padding:"10px 16px"}}>
+              <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                <span style={{fontSize:22,flexShrink:0}}>{CAT_ICON[c.cat]||"📦"}</span>
+                <SInput value={c.name} onChange={e=>s("contents",f.contents.map((x,j)=>j===i?{...x,name:e.target.value}:x))} placeholder={`Item ${i+1} name`}/>
+                <button onClick={()=>s("contents",f.contents.filter((_,j)=>j!==i))} style={{border:"none",background:"none",fontSize:20,color:"#FF3B30",cursor:"pointer",flexShrink:0}}>✕</button>
+              </div>
+              <div style={{display:"flex",gap:5,marginTop:8,paddingLeft:30,overflowX:"auto",paddingBottom:2}}>
+                {CATS.map(cat=><button key={cat} onClick={()=>s("contents",f.contents.map((x,j)=>j===i?{...x,cat}:x))} style={{padding:"4px 9px",borderRadius:8,border:"none",fontSize:12,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap",flexShrink:0,background:(c.cat||"Camera")===cat?"#007AFF":"#F2F2F7",color:(c.cat||"Camera")===cat?"#fff":"#1C1C1E"}}>{CAT_ICON[cat]} {cat}</button>)}
+              </div>
             </div>
           ))}
           <div style={{padding:"8px 16px 14px"}}>
-            <button onClick={()=>s("contents",[...f.contents,{cid:Date.now(),name:"",status:"available",who:null,ret:null}])} style={{width:"100%",padding:"10px",borderRadius:10,border:"1.5px dashed #C7C7CC",background:"transparent",fontSize:14,color:"#007AFF",cursor:"pointer",fontWeight:600}}>+ Add Item</button>
+            <button onClick={()=>s("contents",[...f.contents,{cid:Date.now(),name:"",cat:"Camera",status:"available",who:null,ret:null}])} style={{width:"100%",padding:"10px",borderRadius:10,border:"1.5px dashed #C7C7CC",background:"transparent",fontSize:14,color:"#007AFF",cursor:"pointer",fontWeight:600}}>+ Add Item</button>
           </div>
         </Section>
       :<Section>
