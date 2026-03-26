@@ -52,6 +52,19 @@ function kitStat(item){
   if(out===item.contents.length) return "checkedout";
   return "partial";
 }
+function availQty(item){return Math.max(0,item.qty-(item.checkedOutQty||0)-(item.damagedQty||0));}
+function getStatus(item){
+  if(item.type==="kit") return kitStat(item);
+  const o=item.checkedOutQty||0,d=item.damagedQty||0,a=item.qty-o-d;
+  if(o===0&&d===0) return "available";
+  if(a<=0&&d>0&&o===0) return "damaged";
+  if(a<=0&&o>0&&d===0) return "checkedout";
+  return "partial";
+}
+function migrateItem(it){
+  if(it.type==="kit"||typeof it.checkedOutQty==="number") return it;
+  return{...it,checkedOutQty:it.status==="checkedout"?1:0,damagedQty:it.status==="damaged"?1:0};
+}
 
 function fmt(d){return d?new Date(d).toLocaleDateString("en-AU",{day:"numeric",month:"short"}):""}
 function todayPlus(n){const d=new Date();d.setDate(d.getDate()+n);return d.toISOString().split("T")[0]}
@@ -97,8 +110,12 @@ function GearCard({item,onClick,onLongPress}){
   const end=()=>{clearTimeout(timer.current);setPressed(false)};
   const isKit=item.type==="kit";
   const contents=item.contents||[];
-  const outCount=isKit?contents.filter(c=>c.status!=="available").length:0;
-  const dispStatus=isKit?kitStat(item):item.status;
+  const kitOutCount=isKit?contents.filter(c=>c.status!=="available").length:0;
+  const dispStatus=getStatus(item);
+  const isMulti=!isKit&&item.qty>1;
+  const avail=isMulti?availQty(item):0;
+  const out=isMulti?(item.checkedOutQty||0):0;
+  const dmg=isMulti?(item.damagedQty||0):0;
   return<div onClick={()=>onClick(item)} onMouseDown={start} onMouseUp={end} onMouseLeave={end} onTouchStart={start} onTouchEnd={end}
     style={{background:"#fff",borderRadius:18,padding:"18px 16px",boxShadow:"0 2px 12px rgba(0,0,0,0.07)",cursor:"pointer",border:dispStatus!=="available"?"1.5px solid #FFE0E0":"1.5px solid transparent",transform:pressed?"scale(0.96)":"scale(1)",transition:"transform 0.1s",display:"flex",flexDirection:"column",gap:10}}>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
@@ -112,14 +129,21 @@ function GearCard({item,onClick,onLongPress}){
       <div style={{fontSize:15,fontWeight:600,color:"#1C1C1E",lineHeight:1.3}}>{item.name}</div>
       <div style={{display:"flex",alignItems:"center",gap:6,marginTop:4,flexWrap:"wrap"}}>
         {isKit&&<span style={{fontSize:12,color:"#8E8E93"}}>{contents.length} items</span>}
-        {!isKit&&item.qty>1&&<span style={{fontSize:12,fontWeight:600,color:"#007AFF",background:"#EAF2FF",borderRadius:6,padding:"2px 7px"}}>×{item.qty}</span>}
+        {isMulti&&<span style={{fontSize:12,fontWeight:600,color:"#007AFF",background:"#EAF2FF",borderRadius:6,padding:"2px 7px"}}>×{item.qty}</span>}
         <span style={{fontSize:12,color:"#8E8E93"}}>{item.group}</span>
       </div>
     </div>
-    {isKit&&outCount>0&&<div style={{borderTop:"1px solid #F2F2F7",paddingTop:8,fontSize:12,color:"#FF9500",fontWeight:600}}>⚠ {outCount} of {contents.length} items out</div>}
-    {!isKit&&item.status==="checkedout"&&item.who&&<div style={{borderTop:"1px solid #F2F2F7",paddingTop:10}}><div style={{fontSize:12,color:"#8E8E93"}}>With</div><div style={{fontSize:13,fontWeight:600,color:"#1C1C1E"}}>{item.who}</div>{item.ret&&<div style={{fontSize:12,color:"#FF9500",marginTop:2}}>↩ Back by {fmt(item.ret)}</div>}</div>}
-    {!isKit&&item.status==="damaged"&&item.notes&&<div style={{fontSize:12,color:"#FF3B30",background:"#FFF5F5",borderRadius:8,padding:"6px 10px"}}>⚠️ {item.notes}</div>}
-    <div style={{fontSize:11,color:"#C7C7CC",textAlign:"right",marginTop:-4}}>{isKit?"Tap to manage · Hold to edit":"Hold to edit"}</div>
+    {isMulti&&(out>0||dmg>0)&&(
+      <div style={{borderTop:"1px solid #F2F2F7",paddingTop:8,display:"flex",gap:10,flexWrap:"wrap"}}>
+        {avail>0&&<span style={{fontSize:12,color:"#34C759",fontWeight:600}}>● {avail} available</span>}
+        {out>0&&<span style={{fontSize:12,color:"#FF9500",fontWeight:600}}>● {out} out{item.who?` (${item.who.split(" ")[0]})`:""}  </span>}
+        {dmg>0&&<span style={{fontSize:12,color:"#FF3B30",fontWeight:600}}>● {dmg} damaged</span>}
+      </div>
+    )}
+    {isKit&&kitOutCount>0&&<div style={{borderTop:"1px solid #F2F2F7",paddingTop:8,fontSize:12,color:"#FF9500",fontWeight:600}}>⚠ {kitOutCount} of {contents.length} items out</div>}
+    {!isKit&&!isMulti&&dispStatus==="checkedout"&&item.who&&<div style={{borderTop:"1px solid #F2F2F7",paddingTop:10}}><div style={{fontSize:12,color:"#8E8E93"}}>With</div><div style={{fontSize:13,fontWeight:600,color:"#1C1C1E"}}>{item.who}</div>{item.ret&&<div style={{fontSize:12,color:"#FF9500",marginTop:2}}>↩ Back by {fmt(item.ret)}</div>}</div>}
+    {!isKit&&!isMulti&&dispStatus==="damaged"&&item.notes&&<div style={{fontSize:12,color:"#FF3B30",background:"#FFF5F5",borderRadius:8,padding:"6px 10px"}}>⚠️ {item.notes}</div>}
+    <div style={{fontSize:11,color:"#C7C7CC",textAlign:"right",marginTop:-4}}>{isKit||isMulti?"Tap to manage · Hold to edit":"Hold to edit"}</div>
   </div>
 }
 
@@ -292,27 +316,148 @@ function EditSheet({item,isNew,onSave,onDelete,onClose}){
   </Overlay>
 }
 
-function CheckoutSheet({item,onCheckout,onEdit,onClose}){
+function QtyRow({label,val,setVal,min=1,max}){
+  return<div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 16px"}}>
+    <span style={{fontSize:15,color:"#1C1C1E",fontWeight:500}}>{label}</span>
+    <div style={{display:"flex",alignItems:"center",gap:12}}>
+      <button onClick={()=>setVal(Math.max(min,val-1))} disabled={val<=min} style={{width:36,height:36,borderRadius:10,border:"none",background:"#F2F2F7",fontSize:22,cursor:"pointer",color:val<=min?"#C7C7CC":"#1C1C1E",fontWeight:300}}>−</button>
+      <span style={{fontSize:22,fontWeight:700,color:"#1C1C1E",minWidth:28,textAlign:"center"}}>{val}</span>
+      <button onClick={()=>setVal(Math.min(max,val+1))} disabled={val>=max} style={{width:36,height:36,borderRadius:10,border:"none",background:"#F2F2F7",fontSize:22,cursor:"pointer",color:val>=max?"#C7C7CC":"#1C1C1E",fontWeight:300}}>+</button>
+    </div>
+  </div>;
+}
+
+function PersonPicker({person,setPerson}){
+  return<div style={{maxHeight:200,overflowY:"auto"}}>
+    {TEAM.map(n=><div key={n} onClick={()=>setPerson(n)} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 16px",cursor:"pointer",borderTop:"1px solid #F2F2F7",background:person===n?"#F0F7FF":"transparent"}}>
+      <span style={{fontSize:15,color:"#1C1C1E"}}>{n}</span>
+      {person===n&&<span style={{color:"#007AFF",fontSize:18,fontWeight:700}}>✓</span>}
+    </div>)}
+  </div>;
+}
+
+function ReturnDatePicker({ret,setRet}){
+  return<Section>
+    <SLabel>Returning by</SLabel>
+    <div style={{padding:"0 16px 8px",display:"flex",gap:8}}>
+      {[1,3,7,14].map(n=><button key={n} onClick={()=>setRet(todayPlus(n))} style={{flex:1,padding:"10px 4px",borderRadius:10,border:"none",fontSize:13,fontWeight:600,cursor:"pointer",background:ret===todayPlus(n)?"#007AFF":"#F2F2F7",color:ret===todayPlus(n)?"#fff":"#1C1C1E"}}>{n===1?"Tmrw":`${n}d`}</button>)}
+    </div>
+    <div style={{padding:"4px 16px 14px"}}><input type="date" value={ret} min={todayPlus(1)} onChange={e=>setRet(e.target.value)} style={{width:"100%",fontSize:15,padding:"10px 12px",borderRadius:10,border:"1.5px solid #E5E5EA",background:"#F8F8F8",color:"#1C1C1E",outline:"none",boxSizing:"border-box"}}/></div>
+  </Section>;
+}
+
+function MultiSheet({item,gear,setGear,webhook,onEdit,onClose,showToast}){
+  const[view,setView]=useState("main");
+  const[qty,setQty]=useState(1);
   const[person,setPerson]=useState("");
   const[ret,setRet]=useState(todayPlus(1));
+  const[dmgNote,setDmgNote]=useState("");
+  const live=gear.find(g=>g.id===item.id)||item;
+  const out=live.checkedOutQty||0;
+  const dmg=live.damagedQty||0;
+  const avail=Math.max(0,live.qty-out-dmg);
+
+  const doCheckout=async()=>{
+    setGear(g=>g.map(x=>x.id===live.id?{...x,checkedOutQty:(x.checkedOutQty||0)+qty,who:person,ret}:x));
+    await postSlack(webhook,`📦 *${person}* checked out *${qty}× ${live.name}* (${live.group}). Back by ${fmt(ret)}.`);
+    showToast(`✓ ${qty}× ${live.name} checked out`);onClose();
+  };
+  const doReturn=async()=>{
+    setGear(g=>g.map(x=>{
+      if(x.id!==live.id) return x;
+      const newOut=Math.max(0,(x.checkedOutQty||0)-qty);
+      return{...x,checkedOutQty:newOut,who:newOut>0?x.who:null,ret:newOut>0?x.ret:null};
+    }));
+    await postSlack(webhook,`✅ *${live.who}* returned *${qty}× ${live.name}*.`);
+    showToast(`✓ ${qty}× ${live.name} returned`);onClose();
+  };
+  const doMarkDamaged=async()=>{
+    setGear(g=>g.map(x=>x.id!==live.id?x:{...x,damagedQty:Math.min(x.qty,(x.damagedQty||0)+qty),notes:dmgNote||x.notes}));
+    await postSlack(webhook,`⚠️ *${qty}× ${live.name}* marked as damaged.${dmgNote?` "${dmgNote}"`:""}`);
+    showToast(`⚠️ ${qty} unit${qty>1?"s":""} marked as damaged`);onClose();
+  };
+  const doMarkAvailable=async()=>{
+    setGear(g=>g.map(x=>x.id!==live.id?x:{...x,damagedQty:Math.max(0,(x.damagedQty||0)-qty),notes:(x.damagedQty||0)-qty<=0?"":x.notes}));
+    await postSlack(webhook,`✅ *${qty}× ${live.name}* marked as available.`);
+    showToast(`✓ ${qty} unit${qty>1?"s":""} marked available`);onClose();
+  };
+
+  if(view==="checkout") return<Overlay onClose={()=>setView("main")}>
+    <div style={{padding:"4px 16px 0"}}><div style={{fontSize:13,color:"#8E8E93"}}>Checking out</div><div style={{fontSize:20,fontWeight:700,color:"#1C1C1E",marginTop:2}}>{live.name}</div></div>
+    <Section mt={16}><SLabel>How many?</SLabel><QtyRow label={`of ${avail} available`} val={qty} setVal={setQty} min={1} max={avail}/></Section>
+    <Section mt={8}><SLabel>Who are you?</SLabel><PersonPicker person={person} setPerson={setPerson}/></Section>
+    <ReturnDatePicker ret={ret} setRet={setRet}/>
+    <Btn label={`Check Out ${qty} Unit${qty>1?"s":""}`} onClick={doCheckout} disabled={!person} mt={16}/>
+    <GhostBtn label="Cancel" onClick={()=>setView("main")}/>
+  </Overlay>;
+
+  if(view==="return") return<Overlay onClose={()=>setView("main")}>
+    <div style={{padding:"4px 16px 0"}}><div style={{fontSize:13,color:"#8E8E93"}}>Returning</div><div style={{fontSize:20,fontWeight:700,color:"#1C1C1E",marginTop:2}}>{live.name}</div>{live.who&&<div style={{fontSize:13,color:"#8E8E93",marginTop:2}}>With {live.who}</div>}</div>
+    <Section mt={16}><SLabel>How many returning?</SLabel><QtyRow label={`of ${out} out`} val={qty} setVal={setQty} min={1} max={out}/></Section>
+    <Btn label={`Return ${qty} Unit${qty>1?"s":""} ✓`} color="#34C759" onClick={doReturn} mt={16}/>
+    <GhostBtn label="Cancel" onClick={()=>setView("main")}/>
+  </Overlay>;
+
+  if(view==="damage") return<Overlay onClose={()=>setView("main")}>
+    <div style={{padding:"4px 16px 0"}}><div style={{fontSize:13,color:"#FF3B30",fontWeight:600}}>⚠️ Mark Damaged</div><div style={{fontSize:20,fontWeight:700,color:"#1C1C1E",marginTop:2}}>{live.name}</div></div>
+    <Section mt={16}><SLabel>How many units?</SLabel><QtyRow label={`of ${avail} available`} val={qty} setVal={setQty} min={1} max={avail}/></Section>
+    <Section mt={8}><SLabel>Damage notes (optional)</SLabel><div style={{padding:"0 16px 14px"}}><textarea value={dmgNote} onChange={e=>setDmgNote(e.target.value)} placeholder="Describe the damage…" rows={2} style={{width:"100%",fontSize:15,padding:"10px 12px",borderRadius:10,border:"1.5px solid #E5E5EA",background:"#F8F8F8",outline:"none",resize:"none",fontFamily:"inherit",color:"#1C1C1E",boxSizing:"border-box"}}/></div></Section>
+    <Btn label={`Mark ${qty} Unit${qty>1?"s":""} as Damaged`} color="#FF3B30" onClick={doMarkDamaged} mt={16}/>
+    <GhostBtn label="Cancel" onClick={()=>setView("main")}/>
+  </Overlay>;
+
+  if(view==="undamage") return<Overlay onClose={()=>setView("main")}>
+    <div style={{padding:"4px 16px 0"}}><div style={{fontSize:13,color:"#34C759",fontWeight:600}}>Mark as Available</div><div style={{fontSize:20,fontWeight:700,color:"#1C1C1E",marginTop:2}}>{live.name}</div></div>
+    <Section mt={16}><SLabel>How many units are fixed?</SLabel><QtyRow label={`of ${dmg} damaged`} val={qty} setVal={setQty} min={1} max={dmg}/></Section>
+    <Btn label={`Mark ${qty} Unit${qty>1?"s":""} as Available ✓`} color="#34C759" onClick={doMarkAvailable} mt={16}/>
+    <GhostBtn label="Cancel" onClick={()=>setView("main")}/>
+  </Overlay>;
+
   return<Overlay onClose={onClose}>
     <div style={{padding:"4px 16px 0",display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
-      <div><div style={{fontSize:13,color:"#8E8E93",fontWeight:500}}>Checking out</div><div style={{fontSize:20,fontWeight:700,color:"#1C1C1E",marginTop:2}}>{item.name}</div>{item.qty>1&&<div style={{fontSize:13,color:"#007AFF",marginTop:2}}>×{item.qty} units available</div>}</div>
+      <div><div style={{fontSize:20,fontWeight:700,color:"#1C1C1E"}}>{live.name}</div><div style={{fontSize:13,color:"#8E8E93",marginTop:2}}>{live.group} · {live.qty} total</div></div>
+      <button onClick={()=>onEdit(live)} style={{background:"#F2F2F7",border:"none",borderRadius:10,padding:"6px 12px",fontSize:13,fontWeight:600,color:"#007AFF",cursor:"pointer",marginTop:4}}>Edit</button>
+    </div>
+    <Section mt={16}>
+      <div style={{display:"flex",borderBottom:"1px solid #F2F2F7"}}>
+        {[{n:avail,label:"Available",c:"#34C759"},{n:out,label:"Out",c:"#FF9500"},{n:dmg,label:"Damaged",c:"#FF3B30"}].map((s,i)=>(
+          <div key={s.label} style={{flex:1,textAlign:"center",padding:"14px 8px",borderLeft:i>0?"1px solid #F2F2F7":"none"}}>
+            <div style={{fontSize:24,fontWeight:700,color:s.c}}>{s.n}</div>
+            <div style={{fontSize:11,color:"#8E8E93",fontWeight:500,marginTop:2}}>{s.label}</div>
+          </div>
+        ))}
+      </div>
+      {out>0&&live.who&&<div style={{padding:"12px 16px",borderTop:"1px solid #F2F2F7",fontSize:13,color:"#8E8E93"}}>Out with <span style={{fontWeight:600,color:"#1C1C1E"}}>{live.who}</span>{live.ret&&<span style={{color:"#FF9500"}}> · Back by {fmt(live.ret)}</span>}</div>}
+      {dmg>0&&live.notes&&<div style={{padding:"8px 16px 12px",fontSize:13,color:"#FF3B30"}}>⚠️ {live.notes}</div>}
+    </Section>
+    {avail>0&&<Btn label="Check Out" onClick={()=>{setQty(1);setPerson("");setRet(todayPlus(1));setView("checkout")}} mt={16}/>}
+    {out>0&&<Btn label="Return Gear ✓" color="#34C759" onClick={()=>{setQty(1);setView("return")}} mt={8}/>}
+    {avail>0&&<Btn label="🚧 Mark as Damaged" color="#FF3B30" onClick={()=>{setQty(1);setDmgNote("");setView("damage")}} mt={8}/>}
+    {dmg>0&&<GhostBtn label="Mark Units as Available" onClick={()=>{setQty(1);setView("undamage")}} color="#34C759"/>}
+    <GhostBtn label="Close" onClick={onClose}/>
+  </Overlay>;
+}
+
+function CheckoutSheet({item,onCheckout,onMarkDamaged,onEdit,onClose}){
+  const[person,setPerson]=useState("");
+  const[ret,setRet]=useState(todayPlus(1));
+  const[showDmg,setShowDmg]=useState(false);
+  const[dmgNote,setDmgNote]=useState("");
+  if(showDmg) return<Overlay onClose={()=>setShowDmg(false)}>
+    <div style={{padding:"4px 16px 0"}}><div style={{fontSize:13,color:"#FF3B30",fontWeight:600}}>⚠️ Mark as Damaged</div><div style={{fontSize:20,fontWeight:700,color:"#1C1C1E",marginTop:2}}>{item.name}</div></div>
+    <Section mt={16}><SLabel>Describe the issue</SLabel><div style={{padding:"0 16px 14px"}}><textarea value={dmgNote} onChange={e=>setDmgNote(e.target.value)} placeholder="What's wrong with it?" rows={3} style={{width:"100%",fontSize:15,padding:"10px 12px",borderRadius:10,border:"1.5px solid #E5E5EA",background:"#F8F8F8",outline:"none",resize:"none",fontFamily:"inherit",color:"#1C1C1E",boxSizing:"border-box"}}/></div></Section>
+    <Btn label="Mark as Damaged" color="#FF3B30" onClick={()=>onMarkDamaged(dmgNote)} mt={16}/>
+    <GhostBtn label="Cancel" onClick={()=>setShowDmg(false)}/>
+  </Overlay>;
+  return<Overlay onClose={onClose}>
+    <div style={{padding:"4px 16px 0",display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+      <div><div style={{fontSize:13,color:"#8E8E93",fontWeight:500}}>Checking out</div><div style={{fontSize:20,fontWeight:700,color:"#1C1C1E",marginTop:2}}>{item.name}</div></div>
       <button onClick={()=>onEdit(item)} style={{background:"#F2F2F7",border:"none",borderRadius:10,padding:"6px 12px",fontSize:13,fontWeight:600,color:"#007AFF",cursor:"pointer",marginTop:4,flexShrink:0}}>Edit</button>
     </div>
-    <Section mt={16}><SLabel>Who are you?</SLabel>
-      <div style={{maxHeight:220,overflowY:"auto"}}>
-        {TEAM.map(n=><div key={n} onClick={()=>setPerson(n)} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"13px 16px",cursor:"pointer",borderTop:"1px solid #F2F2F7",background:person===n?"#F0F7FF":"transparent"}}><span style={{fontSize:15,color:"#1C1C1E"}}>{n}</span>{person===n&&<span style={{color:"#007AFF",fontSize:18,fontWeight:700}}>✓</span>}</div>)}
-      </div>
-    </Section>
-    <Section>
-      <SLabel>Returning by</SLabel>
-      <div style={{padding:"0 16px 8px",display:"flex",gap:8}}>
-        {[1,3,7,14].map(n=><button key={n} onClick={()=>setRet(todayPlus(n))} style={{flex:1,padding:"10px 4px",borderRadius:10,border:"none",fontSize:13,fontWeight:600,cursor:"pointer",background:ret===todayPlus(n)?"#007AFF":"#F2F2F7",color:ret===todayPlus(n)?"#fff":"#1C1C1E"}}>{n===1?"Tmrw":`${n}d`}</button>)}
-      </div>
-      <div style={{padding:"8px 16px 14px"}}><input type="date" value={ret} min={todayPlus(1)} onChange={e=>setRet(e.target.value)} style={{width:"100%",fontSize:15,padding:"10px 12px",borderRadius:10,border:"1.5px solid #E5E5EA",background:"#F8F8F8",color:"#1C1C1E",outline:"none",boxSizing:"border-box"}}/></div>
-    </Section>
+    <Section mt={16}><SLabel>Who are you?</SLabel><PersonPicker person={person} setPerson={setPerson}/></Section>
+    <ReturnDatePicker ret={ret} setRet={setRet}/>
     <Btn label="Check Out" onClick={()=>onCheckout(person,ret)} disabled={!person} mt={16}/>
+    <GhostBtn label="🚧 Mark as Damaged Instead" onClick={()=>setShowDmg(true)} color="#FF3B30"/>
     <GhostBtn label="Cancel" onClick={onClose}/>
   </Overlay>
 }
@@ -404,7 +549,7 @@ function ImportSheet({items,onConfirm,onClose}){
 }
 
 export default function GearRoom(){
-  const[gear,setGear]=useState(()=>{try{const s=localStorage.getItem("gr2");return s?JSON.parse(s):INITIAL_GEAR}catch{return INITIAL_GEAR}});
+  const[gear,setGear]=useState(()=>{try{const s=localStorage.getItem("gr2");return s?JSON.parse(s).map(migrateItem):INITIAL_GEAR.map(migrateItem)}catch{return INITIAL_GEAR.map(migrateItem)}});
   const[webhook,setWebhook]=useState(()=>localStorage.getItem("gr_wh")||"");
   const[channel,setChannel]=useState(()=>localStorage.getItem("gr_ch")||"#cameranauts");
   const[activeCat,setActiveCat]=useState("All");
@@ -423,39 +568,46 @@ export default function GearRoom(){
 
   const filtered=gear.filter(g=>(activeCat==="All"||g.cat===activeCat)&&(!search||g.name.toLowerCase().includes(search.toLowerCase())));
   const stats={
-    av:gear.filter(g=>g.type==="kit"?(g.contents||[]).every(c=>c.status==="available"):g.status==="available").length,
-    out:gear.filter(g=>g.type==="kit"?(g.contents||[]).some(c=>c.status!=="available"):g.status==="checkedout").length,
-    iss:gear.filter(g=>g.status==="damaged").length
+    av:gear.filter(g=>g.type==="kit"?(g.contents||[]).every(c=>c.status==="available"):availQty(g)===g.qty&&(g.damagedQty||0)===0).length,
+    out:gear.filter(g=>g.type==="kit"?(g.contents||[]).some(c=>c.status!=="available"):(g.checkedOutQty||0)>0).length,
+    iss:gear.filter(g=>(g.damagedQty||0)>0||g.status==="damaged").length
   };
 
   const openCard=item=>{
     setSel(item);
     if(item.type==="kit"){setModal("kit");return;}
-    setModal(item.status==="available"?"checkout":item.status==="checkedout"?"return":"damaged");
+    if(item.qty>1){setModal("multi");return;}
+    const st=getStatus(item);
+    setModal(st==="available"?"checkout":st==="checkedout"?"return":"damaged");
   };
   const openEdit=item=>{setSel(item);setModal("edit")};
 
   const handleCheckout=async(person,ret)=>{
-    setGear(g=>g.map(x=>x.id===sel.id?{...x,status:"checkedout",who:person,ret}:x));
+    setGear(g=>g.map(x=>x.id===sel.id?{...x,checkedOutQty:1,who:person,ret,status:"checkedout"}:x));
     await postSlack(webhook,`📦 *${person}* checked out *${sel.name}* (${sel.group}). Back by ${fmt(ret)}.`);
     close();showToast(`✓ ${sel.name} checked out`);
   };
   const handleReturn=async(damaged,dmgNote)=>{
     const who=sel.who;
-    setGear(g=>g.map(x=>x.id===sel.id?{...x,status:damaged?"damaged":"available",who:null,ret:null,notes:damaged?dmgNote:x.notes}:x));
+    setGear(g=>g.map(x=>x.id===sel.id?{...x,checkedOutQty:0,damagedQty:damaged?1:0,who:null,ret:null,notes:damaged?dmgNote:x.notes,status:damaged?"damaged":"available"}:x));
     await postSlack(webhook,damaged?`⚠️ *${who}* returned *${sel.name}* with damage: "${dmgNote}"`:`✅ *${who}* returned *${sel.name}* — now available.`);
     close();showToast(damaged?"⚠️ Damage reported":"✓ Gear returned");
   };
   const handleMarkAvailable=async()=>{
-    setGear(g=>g.map(x=>x.id===sel.id?{...x,status:"available",notes:""}:x));
+    setGear(g=>g.map(x=>x.id===sel.id?{...x,damagedQty:0,checkedOutQty:0,status:"available",notes:""}:x));
     await postSlack(webhook,`✅ *${sel.name}* marked as available.`);
     close();showToast("✓ Marked as available");
+  };
+  const handleMarkDamaged=async(dmgNote)=>{
+    setGear(g=>g.map(x=>x.id===sel.id?{...x,damagedQty:1,status:"damaged",notes:dmgNote}:x));
+    await postSlack(webhook,`⚠️ *${sel.name}* marked as damaged.${dmgNote?` "${dmgNote}"`:""}`);
+    close();showToast("⚠️ Marked as damaged");
   };
   const handleSaveItem=form=>{
     const{isKit,contents,...rest}=form;
     const item={...rest};
     if(isKit){item.type="kit";item.contents=(contents||[]).filter(c=>c.name?.trim());}
-    if(modal==="add"){setGear(g=>[...g,{id:nextId(g),...item,status:"available",who:null,ret:null}]);showToast(`✓ ${form.name} added`);}
+    if(modal==="add"){setGear(g=>[...g,{id:nextId(g),...item,status:"available",who:null,ret:null,checkedOutQty:0,damagedQty:0}]);showToast(`✓ ${form.name} added`);}
     else{setGear(g=>g.map(x=>x.id===sel.id?{...x,...item}:x));showToast("✓ Changes saved");}
     close();
   };
@@ -463,7 +615,7 @@ export default function GearRoom(){
   const saveSettings=()=>{localStorage.setItem("gr_wh",webhook);localStorage.setItem("gr_ch",channel);close();showToast("Settings saved ✓")};
   const handleImportCSV=items=>{setImportItems(items);setModal("import");};
   const handleConfirmImport=()=>{
-    setGear(g=>{let id=nextId(g);return[...g,...importItems.map(item=>({...item,id:id++}))];});
+    setGear(g=>{let id=nextId(g);return[...g,...importItems.map(item=>({...item,id:id++,checkedOutQty:0,damagedQty:0}))];});
     showToast(`✓ ${importItems.length} item${importItems.length!==1?"s":""} imported`);
     close();
   };
@@ -517,7 +669,8 @@ export default function GearRoom(){
       <button onClick={()=>setModal("add")} style={{position:"fixed",bottom:28,right:20,width:56,height:56,borderRadius:"50%",background:"#007AFF",border:"none",color:"#fff",fontSize:28,fontWeight:200,cursor:"pointer",boxShadow:"0 4px 20px rgba(0,122,255,0.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:40}}>+</button>
 
       {modal==="kit"&&sel&&<KitSheet item={sel} gear={gear} setGear={setGear} webhook={webhook} onEdit={openEdit} onClose={close} showToast={showToast}/>}
-      {modal==="checkout"&&sel&&<CheckoutSheet item={sel} onCheckout={handleCheckout} onEdit={openEdit} onClose={close}/>}
+      {modal==="multi"&&sel&&<MultiSheet item={sel} gear={gear} setGear={setGear} webhook={webhook} onEdit={openEdit} onClose={close} showToast={showToast}/>}
+      {modal==="checkout"&&sel&&<CheckoutSheet item={sel} onCheckout={handleCheckout} onMarkDamaged={handleMarkDamaged} onEdit={openEdit} onClose={close}/>}
       {modal==="return"&&sel&&<ReturnSheet item={sel} onReturn={handleReturn} onEdit={openEdit} onClose={close}/>}
       {modal==="damaged"&&sel&&<DamagedSheet item={sel} onMarkAvailable={handleMarkAvailable} onEdit={openEdit} onClose={close}/>}
       {(modal==="edit"||modal==="add")&&<EditSheet item={sel} isNew={modal==="add"} onSave={handleSaveItem} onDelete={handleDelete} onClose={close}/>}
