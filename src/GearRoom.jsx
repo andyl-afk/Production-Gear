@@ -608,6 +608,8 @@ export default function GearRoom(){
   const[toast,setToast]=useState(null);
   const[time,setTime]=useState(new Date());
   const[importItems,setImportItems]=useState([]);
+  const[collapsed,setCollapsed]=useState({});
+  const toggleCat=cat=>setCollapsed(c=>({...c,[cat]:!c[cat]}));
 
   useEffect(()=>{localStorage.setItem("gr2",JSON.stringify(gear))},[gear]);
   useEffect(()=>{const t=setInterval(()=>setTime(new Date()),30000);return()=>clearInterval(t)},[]);
@@ -704,14 +706,28 @@ export default function GearRoom(){
       <div style={{padding:"8px 16px 120px"}}>
         {filtered.length===0
           ?<div style={{textAlign:"center",padding:"60px 20px",color:"#8E8E93"}}><div style={{fontSize:32,marginBottom:12}}>📦</div><div style={{fontSize:16,fontWeight:600,marginBottom:6}}>No gear here yet</div><div style={{fontSize:14}}>Tap + to add equipment</div></div>
-          :CATS.filter(cat=>filtered.some(i=>i.cat===cat)).map(cat=>(
-            <div key={cat}>
-              <SLabel>{(CAT_ICON[cat]||"📦")+" "+cat}</SLabel>
-              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(165px,1fr))",gap:12,padding:"4px 0 16px"}}>
-                {filtered.filter(i=>i.cat===cat).map(item=><GearCard key={item.id} item={item} onClick={openCard} onLongPress={openEdit}/>)}
+          :CATS.filter(cat=>filtered.some(i=>i.cat===cat)).map(cat=>{
+            const items=filtered.filter(i=>i.cat===cat);
+            const isCollapsed=!!collapsed[cat];
+            const hasIssue=items.some(i=>getStatus(i)!=="available");
+            return(
+              <div key={cat}>
+                <div onClick={()=>toggleCat(cat)} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 2px 8px",cursor:"pointer",userSelect:"none"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:8}}>
+                    <span style={{fontSize:15}}>{CAT_ICON[cat]||"📦"}</span>
+                    <span style={{fontSize:12,fontWeight:700,color:"#8E8E93",textTransform:"uppercase",letterSpacing:"0.5px"}}>{cat}</span>
+                    <span style={{fontSize:11,fontWeight:600,color:"#fff",background:hasIssue?"#FF9500":"#8E8E93",borderRadius:10,padding:"1px 7px",minWidth:18,textAlign:"center"}}>{items.length}</span>
+                  </div>
+                  <span style={{fontSize:18,color:"#C7C7CC",transition:"transform 0.2s",display:"inline-block",transform:isCollapsed?"rotate(-90deg)":"rotate(0deg)"}}>⌄</span>
+                </div>
+                {!isCollapsed&&(
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(165px,1fr))",gap:12,padding:"0 0 16px"}}>
+                    {items.map(item=><GearCard key={item.id} item={item} onClick={openCard} onLongPress={openEdit}/>)}
+                  </div>
+                )}
               </div>
-            </div>
-          ))
+            );
+          })
         }
       </div>
 
