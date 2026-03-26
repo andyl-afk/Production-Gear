@@ -58,6 +58,27 @@ function todayPlus(n){const d=new Date();d.setDate(d.getDate()+n);return d.toISO
 function nextId(g){return g.length?Math.max(...g.map(x=>x.id))+1:1}
 async function postSlack(url,text){if(!url)return;try{await fetch(url,{method:"POST",mode:"no-cors",headers:{"Content-Type":"application/json"},body:JSON.stringify({text})})}catch(_){}}
 
+function parseCSV(text){
+  const rows=text.trim().split(/\r?\n/).filter(l=>l.trim());
+  if(rows.length<2) return [];
+  const splitRow=r=>{const out=[];let cur="",inQ=false;for(const ch of r){if(ch==='"'){inQ=!inQ;}else if(ch===','&&!inQ){out.push(cur.trim());cur="";}else{cur+=ch;}}out.push(cur.trim());return out;};
+  const heads=splitRow(rows[0]).map(h=>h.replace(/^"|"$/g,'').toLowerCase().trim());
+  const idx=kws=>{for(const k of kws){const i=heads.findIndex(h=>h.includes(k));if(i>=0)return i;}return -1;};
+  const ni=idx(['name']),ci=idx(['cat']),qi=idx(['qty','quant']),gi=idx(['group','team']),oi=idx(['note']);
+  return rows.slice(1).map(r=>{
+    const c=splitRow(r).map(x=>x.replace(/^"|"$/g,'').trim());
+    const get=i=>i>=0?(c[i]||''):'';
+    const name=get(ni>=0?ni:0);
+    if(!name) return null;
+    const rawCat=get(ci>=0?ci:1);
+    const cat=CATS.find(x=>x.toLowerCase()===rawCat.toLowerCase())||CATS.find(x=>x.toLowerCase().startsWith(rawCat.slice(0,3).toLowerCase()))||'Camera';
+    const qty=Math.max(1,parseInt(get(qi>=0?qi:2))||1);
+    const group=get(gi>=0?gi:-1)||'Shared Pool';
+    const notes=get(oi>=0?oi:-1)||'';
+    return{name,cat,qty,group,notes,status:'available',who:null,ret:null};
+  }).filter(Boolean);
+}
+
 function Badge({status}){const s=STATUS[status]||STATUS.available;return<span style={{display:"inline-flex",alignItems:"center",gap:5,background:s.bg,color:s.text,fontSize:12,fontWeight:600,padding:"4px 10px",borderRadius:20}}><span style={{width:7,height:7,borderRadius:"50%",background:s.dot,flexShrink:0}}/>{s.label}</span>}
 
 function Overlay({children,onClose}){return<div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.45)",zIndex:100,display:"flex",alignItems:"flex-end",justifyContent:"center"}}><div onClick={e=>e.stopPropagation()} style={{background:"#F2F2F7",borderRadius:"24px 24px 0 0",width:"100%",maxWidth:560,maxHeight:"92vh",overflowY:"auto",paddingBottom:44,boxShadow:"0 -4px 40px rgba(0,0,0,0.2)"}}><div style={{textAlign:"center",paddingTop:14,paddingBottom:8}}><div style={{width:36,height:5,borderRadius:3,background:"#C7C7CC",margin:"0 auto"}}/></div>{children}</div></div>}
@@ -323,12 +344,61 @@ function DamagedSheet({item,onMarkAvailable,onEdit,onClose}){
   </Overlay>
 }
 
-function SettingsSheet({webhook,setWebhook,channel,setChannel,onSave,onClose}){
+function SettingsSheet({webhook,setWebhook,channel,setChannel,onSave,onClose,onImportCSV}){
+  const fileRef=useRef(null);
+  const handleFile=e=>{
+    const file=e.target.files?.[0];
+    if(!file) return;
+    const reader=new FileReader();
+    reader.onload=ev=>{
+      const items=parseCSV(ev.target.result||'');
+      if(items.length>0){onClose();onImportCSV(items);}
+      else alert("No valid gear found in the CSV. Make sure it has at least a 'name' column.");
+    };
+    reader.readAsText(file);
+    e.target.value='';
+  };
   return<Overlay onClose={onClose}>
     <div style={{padding:"4px 16px 12px"}}><div style={{fontSize:20,fontWeight:700,color:"#1C1C1E"}}>Settings</div></div>
     <Section><SLabel>Slack Webhook URL</SLabel><div style={{padding:"0 16px 8px"}}><SInput value={webhook} onChange={e=>setWebhook(e.target.value)} placeholder="https://hooks.slack.com/services/…"/><div style={{fontSize:12,color:"#8E8E93",marginTop:6}}>Checkout, return, and damage events post to Slack automatically.</div></div></Section>
     <Section><SLabel>Channel (display only)</SLabel><div style={{padding:"0 16px 14px"}}><SInput value={channel} onChange={e=>setChannel(e.target.value)} placeholder="#cameranauts"/></div></Section>
+    <Section>
+      <SLabel>Bulk Import</SLabel>
+      <div style={{padding:"0 16px 14px"}}>
+        <div style={{fontSize:12,color:"#8E8E93",marginBottom:10,lineHeight:1.6}}>Upload a CSV with columns: <span style={{fontWeight:600,color:"#1C1C1E"}}>name</span>, <span style={{fontWeight:600,color:"#1C1C1E"}}>category</span>, <span style={{fontWeight:600,color:"#1C1C1E"}}>quantity</span><br/>Optional: group, notes</div>
+        <input ref={fileRef} type="file" accept=".csv,.txt" onChange={handleFile} style={{display:"none"}}/>
+        <button onClick={()=>fileRef.current?.click()} style={{width:"100%",padding:"12px",borderRadius:10,border:"1.5px dashed #007AFF",background:"#F0F7FF",fontSize:14,color:"#007AFF",cursor:"pointer",fontWeight:600}}>📂  Choose CSV File</button>
+      </div>
+    </Section>
     <Btn label="Save Settings" onClick={onSave} mt={16}/>
+    <GhostBtn label="Cancel" onClick={onClose}/>
+  </Overlay>
+}
+
+function ImportSheet({items,onConfirm,onClose}){
+  return<Overlay onClose={onClose}>
+    <div style={{padding:"4px 16px 0"}}>
+      <div style={{fontSize:20,fontWeight:700,color:"#1C1C1E"}}>Import Gear</div>
+      <div style={{fontSize:13,color:"#8E8E93",marginTop:2}}>{items.length} item{items.length!==1?"s":""} found in CSV</div>
+    </div>
+    <Section mt={16}>
+      <SLabel>Preview</SLabel>
+      <div style={{maxHeight:360,overflowY:"auto"}}>
+        {items.map((item,i)=>(
+          <div key={i} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"11px 16px",borderTop:i>0?"1px solid #F2F2F7":"none"}}>
+            <div style={{display:"flex",alignItems:"center",gap:10}}>
+              <span style={{fontSize:20,flexShrink:0}}>{CAT_ICON[item.cat]||"📦"}</span>
+              <div>
+                <div style={{fontSize:14,fontWeight:600,color:"#1C1C1E"}}>{item.name}</div>
+                <div style={{fontSize:12,color:"#8E8E93"}}>{item.cat} · {item.group}</div>
+              </div>
+            </div>
+            {item.qty>1&&<span style={{fontSize:12,fontWeight:600,color:"#007AFF",background:"#EAF2FF",borderRadius:6,padding:"2px 7px",flexShrink:0}}>×{item.qty}</span>}
+          </div>
+        ))}
+      </div>
+    </Section>
+    <Btn label={`Add ${items.length} Item${items.length!==1?"s":""} to Inventory`} onClick={onConfirm} mt={16}/>
     <GhostBtn label="Cancel" onClick={onClose}/>
   </Overlay>
 }
@@ -343,6 +413,7 @@ export default function GearRoom(){
   const[sel,setSel]=useState(null);
   const[toast,setToast]=useState(null);
   const[time,setTime]=useState(new Date());
+  const[importItems,setImportItems]=useState([]);
 
   useEffect(()=>{localStorage.setItem("gr2",JSON.stringify(gear))},[gear]);
   useEffect(()=>{const t=setInterval(()=>setTime(new Date()),30000);return()=>clearInterval(t)},[]);
@@ -390,6 +461,12 @@ export default function GearRoom(){
   };
   const handleDelete=item=>{setGear(g=>g.filter(x=>x.id!==item.id));close();showToast(`${item.name} removed`)};
   const saveSettings=()=>{localStorage.setItem("gr_wh",webhook);localStorage.setItem("gr_ch",channel);close();showToast("Settings saved ✓")};
+  const handleImportCSV=items=>{setImportItems(items);setModal("import");};
+  const handleConfirmImport=()=>{
+    setGear(g=>{let id=nextId(g);return[...g,...importItems.map(item=>({...item,id:id++}))];});
+    showToast(`✓ ${importItems.length} item${importItems.length!==1?"s":""} imported`);
+    close();
+  };
 
   return(
     <div style={{minHeight:"100vh",background:"#F2F2F7",fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display','Segoe UI',sans-serif",WebkitFontSmoothing:"antialiased"}}>
@@ -444,7 +521,8 @@ export default function GearRoom(){
       {modal==="return"&&sel&&<ReturnSheet item={sel} onReturn={handleReturn} onEdit={openEdit} onClose={close}/>}
       {modal==="damaged"&&sel&&<DamagedSheet item={sel} onMarkAvailable={handleMarkAvailable} onEdit={openEdit} onClose={close}/>}
       {(modal==="edit"||modal==="add")&&<EditSheet item={sel} isNew={modal==="add"} onSave={handleSaveItem} onDelete={handleDelete} onClose={close}/>}
-      {modal==="settings"&&<SettingsSheet webhook={webhook} setWebhook={setWebhook} channel={channel} setChannel={setChannel} onSave={saveSettings} onClose={close}/>}
+      {modal==="settings"&&<SettingsSheet webhook={webhook} setWebhook={setWebhook} channel={channel} setChannel={setChannel} onSave={saveSettings} onClose={close} onImportCSV={handleImportCSV}/>}
+      {modal==="import"&&<ImportSheet items={importItems} onConfirm={handleConfirmImport} onClose={close}/>}
 
       {toast&&<Toast msg={toast} onDone={()=>setToast(null)}/>}
     </div>
