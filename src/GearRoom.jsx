@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { Camera, Aperture, Lightbulb, Mic, Wrench, Layers, Battery, Package } from "lucide-react";
 
 const INITIAL_GEAR = [
   { id:1,  name:"Aputure 300d",                qty:1, cat:"Lighting",    group:"Shared Pool",    status:"damaged",   who:null, ret:null, notes:"Reported damaged by Elliott. Needs assessment before next use." },
@@ -37,7 +38,8 @@ const INITIAL_GEAR = [
 const TEAM     = ["Alissa Prcevich","André Rodrigues","Andy Lloyd","Chloe Adam","Christian Love","Elliott Small","Jazel Antiporda","Jess Edwards","Jess Holmes","Lucille Figueroa","Lydia Proudlove","Matt Hodges","Michael Amoroso","Neill Pagdanganan","Nem Stankovic","Paige Cooper","Raphael Rigos"];
 const GROUPS   = ["Shared Pool","Campaigns Team","Social Team","Growth","Production COE"];
 const CATS     = ["Camera","Lenses","Lighting","Audio","Rigging","Support","Power","Accessories"];
-const CAT_ICON = {Camera:"📹",Lenses:"🔭",Lighting:"💡",Audio:"🎤",Rigging:"🧰",Support:"💪🏼",Power:"🔋",Accessories:"🎬"};
+const CAT_ICON_MAP = {Camera,Lenses:Aperture,Lighting:Lightbulb,Audio:Mic,Rigging:Wrench,Support:Layers,Power:Battery,Accessories:Package};
+function CatIcon({cat,size=18,color="currentColor"}){const Icon=CAT_ICON_MAP[cat]||Package;return<Icon size={size} color={color} strokeWidth={1.75}/>;}
 const STATUS   = {
   available:  {label:"Available",   bg:"#E8F9EE",dot:"#34C759",text:"#1A7A3A"},
   checkedout: {label:"Checked Out", bg:"#FFF3E0",dot:"#FF9500",text:"#A04000"},
@@ -145,7 +147,7 @@ function GearCard({item,onClick,onLongPress}){
         </div>
       :<div style={{padding:"14px 16px 0",display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
           <div style={{display:"flex",alignItems:"center",gap:6}}>
-            <span style={{fontSize:24}}>{CAT_ICON[item.cat]||"📦"}</span>
+            <CatIcon cat={item.cat} size={22}/>
             {isKit&&<span style={{fontSize:10,fontWeight:700,color:"#fff",background:"#007AFF",padding:"2px 7px",borderRadius:6,letterSpacing:0.3}}>KIT</span>}
           </div>
           <Badge status={dispStatus}/>
@@ -250,7 +252,7 @@ function KitSheet({item,gear,setGear,webhook,onEdit,onClose,showToast}){
           <div key={c.cid} onClick={()=>{setPerson("");setRet(todayPlus(1));setSubModal({type:c.status==="available"?"checkout":"return",cid:c.cid})}}
             style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"13px 16px",cursor:"pointer",borderTop:i>0?"1px solid #F2F2F7":"none",background:c.status!=="available"?"#FFFAF5":"transparent"}}>
             <div style={{display:"flex",alignItems:"center",gap:10}}>
-              <span style={{fontSize:20,flexShrink:0}}>{CAT_ICON[c.cat]||"📦"}</span>
+              <CatIcon cat={c.cat} size={18}/>
               <div>
                 <div style={{fontSize:15,color:"#1C1C1E",fontWeight:500}}>{c.name}</div>
                 {c.status==="checkedout"&&<div style={{fontSize:12,color:"#FF9500",marginTop:2}}>Out with {c.who} · Back {fmt(c.ret)}</div>}
@@ -294,7 +296,7 @@ function EditSheet({item,isNew,onSave,onDelete,onClose}){
       <SLabel>Photo</SLabel>
       <div style={{padding:"0 16px 14px",display:"flex",alignItems:"center",gap:12}}>
         <div style={{width:72,height:72,borderRadius:12,overflow:"hidden",background:"#F2F2F7",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>
-          {f.photo?<img src={f.photo} alt="gear" style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<span style={{fontSize:28}}>{CAT_ICON[f.cat]||"📦"}</span>}
+          {f.photo?<img src={f.photo} alt="gear" style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<CatIcon cat={f.cat} size={28} color="#8E8E93"/>}
         </div>
         <div style={{flex:1,display:"flex",flexDirection:"column",gap:8}}>
           <input ref={photoRef} type="file" accept="image/*" capture="environment" onChange={handlePhotoChange} style={{display:"none"}}/>
@@ -318,12 +320,12 @@ function EditSheet({item,isNew,onSave,onDelete,onClose}){
           {f.contents.map((c,i)=>(
             <div key={i} style={{borderTop:i>0?"1px solid #F2F2F7":"none",padding:"10px 16px"}}>
               <div style={{display:"flex",gap:8,alignItems:"center"}}>
-                <span style={{fontSize:22,flexShrink:0}}>{CAT_ICON[c.cat]||"📦"}</span>
+                <CatIcon cat={c.cat||"Camera"} size={20} color="#8E8E93"/>
                 <SInput value={c.name} onChange={e=>s("contents",f.contents.map((x,j)=>j===i?{...x,name:e.target.value}:x))} placeholder={`Item ${i+1} name`}/>
                 <button onClick={()=>s("contents",f.contents.filter((_,j)=>j!==i))} style={{border:"none",background:"none",fontSize:20,color:"#FF3B30",cursor:"pointer",flexShrink:0}}>✕</button>
               </div>
               <div style={{display:"flex",gap:5,marginTop:8,paddingLeft:30,overflowX:"auto",paddingBottom:2}}>
-                {CATS.map(cat=><button key={cat} onClick={()=>s("contents",f.contents.map((x,j)=>j===i?{...x,cat}:x))} style={{padding:"4px 9px",borderRadius:8,border:"none",fontSize:12,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap",flexShrink:0,background:(c.cat||"Camera")===cat?"#007AFF":"#F2F2F7",color:(c.cat||"Camera")===cat?"#fff":"#1C1C1E"}}>{CAT_ICON[cat]} {cat}</button>)}
+                {CATS.map(cat=><button key={cat} onClick={()=>s("contents",f.contents.map((x,j)=>j===i?{...x,cat}:x))} style={{padding:"4px 9px",borderRadius:8,border:"none",fontSize:12,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap",flexShrink:0,display:"inline-flex",alignItems:"center",gap:4,background:(c.cat||"Camera")===cat?"#007AFF":"#F2F2F7",color:(c.cat||"Camera")===cat?"#fff":"#1C1C1E"}}><CatIcon cat={cat} size={11}/>{cat}</button>)}
               </div>
             </div>
           ))}
@@ -343,7 +345,7 @@ function EditSheet({item,isNew,onSave,onDelete,onClose}){
     <Section>
       <SLabel>Category</SLabel>
       <div style={{padding:"0 16px 14px",display:"flex",flexWrap:"wrap",gap:8}}>
-        {CATS.map(c=><button key={c} onClick={()=>s("cat",c)} style={{padding:"8px 14px",borderRadius:10,border:"none",fontSize:13,fontWeight:600,cursor:"pointer",background:f.cat===c?"#007AFF":"#F2F2F7",color:f.cat===c?"#fff":"#1C1C1E"}}>{CAT_ICON[c]} {c}</button>)}
+        {CATS.map(c=><button key={c} onClick={()=>s("cat",c)} style={{padding:"8px 14px",borderRadius:10,border:"none",fontSize:13,fontWeight:600,cursor:"pointer",display:"inline-flex",alignItems:"center",gap:6,background:f.cat===c?"#007AFF":"#F2F2F7",color:f.cat===c?"#fff":"#1C1C1E"}}><CatIcon cat={c} size={14}/>{c}</button>)}
       </div>
     </Section>
     <Section>
@@ -581,7 +583,7 @@ function ImportSheet({items,onConfirm,onClose}){
         {items.map((item,i)=>(
           <div key={i} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"11px 16px",borderTop:i>0?"1px solid #F2F2F7":"none"}}>
             <div style={{display:"flex",alignItems:"center",gap:10}}>
-              <span style={{fontSize:20,flexShrink:0}}>{CAT_ICON[item.cat]||"📦"}</span>
+              <CatIcon cat={item.cat} size={18} color="#8E8E93"/>
               <div>
                 <div style={{fontSize:14,fontWeight:600,color:"#1C1C1E"}}>{item.name}</div>
                 <div style={{fontSize:12,color:"#8E8E93"}}>{item.cat} · {item.group}</div>
@@ -699,7 +701,7 @@ export default function GearRoom(){
           {search&&<button onClick={()=>setSearch("")} style={{border:"none",background:"#C7C7CC",borderRadius:"50%",width:18,height:18,color:"#fff",fontSize:11,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>✕</button>}
         </div>
         <div style={{display:"flex",gap:6,overflowX:"auto",paddingBottom:14,scrollbarWidth:"none"}}>
-          {["All",...CATS].map(c=><button key={c} onClick={()=>setActiveCat(c)} style={{flexShrink:0,padding:"7px 14px",borderRadius:20,border:"none",fontSize:13,fontWeight:600,cursor:"pointer",background:activeCat===c?"#007AFF":"#F2F2F7",color:activeCat===c?"#fff":"#8E8E93"}}>{c==="All"?c:(CAT_ICON[c]||"")+" "+c}</button>)}
+          {["All",...CATS].map(c=><button key={c} onClick={()=>setActiveCat(c)} style={{flexShrink:0,padding:"7px 14px",borderRadius:20,border:"none",fontSize:13,fontWeight:600,cursor:"pointer",display:"inline-flex",alignItems:"center",gap:5,background:activeCat===c?"#007AFF":"#F2F2F7",color:activeCat===c?"#fff":"#8E8E93"}}>{c!=="All"&&<CatIcon cat={c} size={13}/>}{c}</button>)}
         </div>
       </div>
 
@@ -714,7 +716,7 @@ export default function GearRoom(){
               <div key={cat}>
                 <div onClick={()=>toggleCat(cat)} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 2px 8px",cursor:"pointer",userSelect:"none"}}>
                   <div style={{display:"flex",alignItems:"center",gap:8}}>
-                    <span style={{fontSize:15}}>{CAT_ICON[cat]||"📦"}</span>
+                    <CatIcon cat={cat} size={14} color="#8E8E93"/>
                     <span style={{fontSize:12,fontWeight:700,color:"#8E8E93",textTransform:"uppercase",letterSpacing:"0.5px"}}>{cat}</span>
                     <span style={{fontSize:11,fontWeight:600,color:"#fff",background:hasIssue?"#FF9500":"#8E8E93",borderRadius:10,padding:"1px 7px",minWidth:18,textAlign:"center"}}>{items.length}</span>
                   </div>
