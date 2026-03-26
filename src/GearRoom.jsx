@@ -92,6 +92,25 @@ function parseCSV(text){
   }).filter(Boolean);
 }
 
+function compressImage(file,maxPx=220,quality=0.78){
+  return new Promise(resolve=>{
+    const reader=new FileReader();
+    reader.onload=e=>{
+      const img=new Image();
+      img.onload=()=>{
+        const scale=Math.min(maxPx/img.width,maxPx/img.height,1);
+        const canvas=document.createElement('canvas');
+        canvas.width=Math.round(img.width*scale);
+        canvas.height=Math.round(img.height*scale);
+        canvas.getContext('2d').drawImage(img,0,0,canvas.width,canvas.height);
+        resolve(canvas.toDataURL('image/jpeg',quality));
+      };
+      img.src=e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
 function Badge({status}){const s=STATUS[status]||STATUS.available;return<span style={{display:"inline-flex",alignItems:"center",gap:5,background:s.bg,color:s.text,fontSize:12,fontWeight:600,padding:"4px 10px",borderRadius:20}}><span style={{width:7,height:7,borderRadius:"50%",background:s.dot,flexShrink:0}}/>{s.label}</span>}
 
 function Overlay({children,onClose}){return<div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.45)",zIndex:100,display:"flex",alignItems:"flex-end",justifyContent:"center"}}><div onClick={e=>e.stopPropagation()} style={{background:"#F2F2F7",borderRadius:"24px 24px 0 0",width:"100%",maxWidth:560,maxHeight:"92vh",overflowY:"auto",paddingBottom:44,boxShadow:"0 -4px 40px rgba(0,0,0,0.2)"}}><div style={{textAlign:"center",paddingTop:14,paddingBottom:8}}><div style={{width:36,height:5,borderRadius:3,background:"#C7C7CC",margin:"0 auto"}}/></div>{children}</div></div>}
@@ -117,33 +136,42 @@ function GearCard({item,onClick,onLongPress}){
   const out=isMulti?(item.checkedOutQty||0):0;
   const dmg=isMulti?(item.damagedQty||0):0;
   return<div onClick={()=>onClick(item)} onMouseDown={start} onMouseUp={end} onMouseLeave={end} onTouchStart={start} onTouchEnd={end}
-    style={{background:"#fff",borderRadius:18,padding:"18px 16px",boxShadow:"0 2px 12px rgba(0,0,0,0.07)",cursor:"pointer",border:dispStatus!=="available"?"1.5px solid #FFE0E0":"1.5px solid transparent",transform:pressed?"scale(0.96)":"scale(1)",transition:"transform 0.1s",display:"flex",flexDirection:"column",gap:10}}>
-    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
-      <div style={{display:"flex",alignItems:"center",gap:6}}>
-        <span style={{fontSize:24}}>{CAT_ICON[item.cat]||"📦"}</span>
-        {isKit&&<span style={{fontSize:10,fontWeight:700,color:"#fff",background:"#007AFF",padding:"2px 7px",borderRadius:6,letterSpacing:0.3}}>KIT</span>}
+    style={{background:"#fff",borderRadius:18,overflow:"hidden",boxShadow:"0 2px 12px rgba(0,0,0,0.07)",cursor:"pointer",border:dispStatus!=="available"?"1.5px solid #FFE0E0":"1.5px solid transparent",transform:pressed?"scale(0.96)":"scale(1)",transition:"transform 0.1s",display:"flex",flexDirection:"column"}}>
+    {item.photo
+      ?<div style={{height:130,overflow:"hidden",flexShrink:0,position:"relative"}}>
+          <img src={item.photo} alt={item.name} style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+          <div style={{position:"absolute",top:8,right:8}}><Badge status={dispStatus}/></div>
+          {isKit&&<span style={{position:"absolute",top:8,left:8,fontSize:10,fontWeight:700,color:"#fff",background:"#007AFF",padding:"2px 7px",borderRadius:6,letterSpacing:0.3}}>KIT</span>}
+        </div>
+      :<div style={{padding:"14px 16px 0",display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+          <div style={{display:"flex",alignItems:"center",gap:6}}>
+            <span style={{fontSize:24}}>{CAT_ICON[item.cat]||"📦"}</span>
+            {isKit&&<span style={{fontSize:10,fontWeight:700,color:"#fff",background:"#007AFF",padding:"2px 7px",borderRadius:6,letterSpacing:0.3}}>KIT</span>}
+          </div>
+          <Badge status={dispStatus}/>
+        </div>
+    }
+    <div style={{padding:item.photo?"12px 14px 14px":"8px 16px 14px",display:"flex",flexDirection:"column",gap:8,flex:1}}>
+      <div>
+        <div style={{fontSize:15,fontWeight:600,color:"#1C1C1E",lineHeight:1.3}}>{item.name}</div>
+        <div style={{display:"flex",alignItems:"center",gap:6,marginTop:3,flexWrap:"wrap"}}>
+          {isKit&&<span style={{fontSize:12,color:"#8E8E93"}}>{contents.length} items</span>}
+          {isMulti&&<span style={{fontSize:12,fontWeight:600,color:"#007AFF",background:"#EAF2FF",borderRadius:6,padding:"2px 7px"}}>×{item.qty}</span>}
+          <span style={{fontSize:12,color:"#8E8E93"}}>{item.group}</span>
+        </div>
       </div>
-      <Badge status={dispStatus}/>
+      {isMulti&&(out>0||dmg>0)&&(
+        <div style={{borderTop:"1px solid #F2F2F7",paddingTop:6,display:"flex",gap:8,flexWrap:"wrap"}}>
+          {avail>0&&<span style={{fontSize:12,color:"#34C759",fontWeight:600}}>● {avail} avail</span>}
+          {out>0&&<span style={{fontSize:12,color:"#FF9500",fontWeight:600}}>● {out} out{item.who?` (${item.who.split(" ")[0]})`:""}  </span>}
+          {dmg>0&&<span style={{fontSize:12,color:"#FF3B30",fontWeight:600}}>● {dmg} dmg</span>}
+        </div>
+      )}
+      {isKit&&kitOutCount>0&&<div style={{borderTop:"1px solid #F2F2F7",paddingTop:6,fontSize:12,color:"#FF9500",fontWeight:600}}>⚠ {kitOutCount} of {contents.length} out</div>}
+      {!isKit&&!isMulti&&dispStatus==="checkedout"&&item.who&&<div style={{borderTop:"1px solid #F2F2F7",paddingTop:8}}><div style={{fontSize:12,color:"#8E8E93"}}>With</div><div style={{fontSize:13,fontWeight:600,color:"#1C1C1E"}}>{item.who}</div>{item.ret&&<div style={{fontSize:12,color:"#FF9500",marginTop:2}}>↩ Back by {fmt(item.ret)}</div>}</div>}
+      {!isKit&&!isMulti&&dispStatus==="damaged"&&item.notes&&<div style={{fontSize:12,color:"#FF3B30",background:"#FFF5F5",borderRadius:8,padding:"6px 10px"}}>⚠️ {item.notes}</div>}
+      <div style={{fontSize:11,color:"#C7C7CC",textAlign:"right"}}>{isKit||isMulti?"Tap to manage · Hold to edit":"Hold to edit"}</div>
     </div>
-    <div style={{flex:1}}>
-      <div style={{fontSize:15,fontWeight:600,color:"#1C1C1E",lineHeight:1.3}}>{item.name}</div>
-      <div style={{display:"flex",alignItems:"center",gap:6,marginTop:4,flexWrap:"wrap"}}>
-        {isKit&&<span style={{fontSize:12,color:"#8E8E93"}}>{contents.length} items</span>}
-        {isMulti&&<span style={{fontSize:12,fontWeight:600,color:"#007AFF",background:"#EAF2FF",borderRadius:6,padding:"2px 7px"}}>×{item.qty}</span>}
-        <span style={{fontSize:12,color:"#8E8E93"}}>{item.group}</span>
-      </div>
-    </div>
-    {isMulti&&(out>0||dmg>0)&&(
-      <div style={{borderTop:"1px solid #F2F2F7",paddingTop:8,display:"flex",gap:10,flexWrap:"wrap"}}>
-        {avail>0&&<span style={{fontSize:12,color:"#34C759",fontWeight:600}}>● {avail} available</span>}
-        {out>0&&<span style={{fontSize:12,color:"#FF9500",fontWeight:600}}>● {out} out{item.who?` (${item.who.split(" ")[0]})`:""}  </span>}
-        {dmg>0&&<span style={{fontSize:12,color:"#FF3B30",fontWeight:600}}>● {dmg} damaged</span>}
-      </div>
-    )}
-    {isKit&&kitOutCount>0&&<div style={{borderTop:"1px solid #F2F2F7",paddingTop:8,fontSize:12,color:"#FF9500",fontWeight:600}}>⚠ {kitOutCount} of {contents.length} items out</div>}
-    {!isKit&&!isMulti&&dispStatus==="checkedout"&&item.who&&<div style={{borderTop:"1px solid #F2F2F7",paddingTop:10}}><div style={{fontSize:12,color:"#8E8E93"}}>With</div><div style={{fontSize:13,fontWeight:600,color:"#1C1C1E"}}>{item.who}</div>{item.ret&&<div style={{fontSize:12,color:"#FF9500",marginTop:2}}>↩ Back by {fmt(item.ret)}</div>}</div>}
-    {!isKit&&!isMulti&&dispStatus==="damaged"&&item.notes&&<div style={{fontSize:12,color:"#FF3B30",background:"#FFF5F5",borderRadius:8,padding:"6px 10px"}}>⚠️ {item.notes}</div>}
-    <div style={{fontSize:11,color:"#C7C7CC",textAlign:"right",marginTop:-4}}>{isKit||isMulti?"Tap to manage · Hold to edit":"Hold to edit"}</div>
   </div>
 }
 
@@ -240,9 +268,17 @@ function KitSheet({item,gear,setGear,webhook,onEdit,onClose,showToast}){
 
 function EditSheet({item,isNew,onSave,onDelete,onClose}){
   const[f,setF]=useState(isNew
-    ?{name:"",qty:1,cat:"Camera",group:"Shared Pool",notes:"",isKit:false,contents:[]}
-    :{name:item.name,qty:item.qty||1,cat:item.cat,group:item.group,notes:item.notes||"",isKit:item.type==="kit",contents:item.contents||[]});
+    ?{name:"",qty:1,cat:"Camera",group:"Shared Pool",notes:"",isKit:false,contents:[],photo:null}
+    :{name:item.name,qty:item.qty||1,cat:item.cat,group:item.group,notes:item.notes||"",isKit:item.type==="kit",contents:item.contents||[],photo:item.photo||null});
   const s=(k,v)=>setF(x=>({...x,[k]:v}));
+  const photoRef=useRef(null);
+  const handlePhotoChange=async e=>{
+    const file=e.target.files?.[0];
+    if(!file) return;
+    const compressed=await compressImage(file);
+    s("photo",compressed);
+    e.target.value='';
+  };
   const handleSave=()=>{
     const{isKit,contents,...rest}=f;
     const out={...rest};
@@ -254,7 +290,20 @@ function EditSheet({item,isNew,onSave,onDelete,onClose}){
       <div style={{fontSize:20,fontWeight:700,color:"#1C1C1E"}}>{isNew?"Add Equipment":"Edit Equipment"}</div>
       {!isNew&&<button onClick={()=>onDelete(item)} style={{background:"transparent",border:"none",fontSize:13,color:"#FF3B30",fontWeight:600,cursor:"pointer"}}>Delete</button>}
     </div>
-    <Section mt={16}><SLabel>Name</SLabel><div style={{padding:"0 16px 14px"}}><SInput value={f.name} onChange={e=>s("name",e.target.value)} placeholder="e.g. Sony FX6 or Canon R5C Kit"/></div></Section>
+    <Section mt={16}>
+      <SLabel>Photo</SLabel>
+      <div style={{padding:"0 16px 14px",display:"flex",alignItems:"center",gap:12}}>
+        <div style={{width:72,height:72,borderRadius:12,overflow:"hidden",background:"#F2F2F7",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>
+          {f.photo?<img src={f.photo} alt="gear" style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<span style={{fontSize:28}}>{CAT_ICON[f.cat]||"📦"}</span>}
+        </div>
+        <div style={{flex:1,display:"flex",flexDirection:"column",gap:8}}>
+          <input ref={photoRef} type="file" accept="image/*" capture="environment" onChange={handlePhotoChange} style={{display:"none"}}/>
+          <button onClick={()=>photoRef.current?.click()} style={{padding:"9px 14px",borderRadius:10,border:"1.5px solid #007AFF",background:"#F0F7FF",fontSize:13,color:"#007AFF",cursor:"pointer",fontWeight:600,textAlign:"center"}}>📷  {f.photo?"Change Photo":"Add Photo"}</button>
+          {f.photo&&<button onClick={()=>s("photo",null)} style={{padding:"7px 14px",borderRadius:10,border:"none",background:"#F2F2F7",fontSize:13,color:"#8E8E93",cursor:"pointer",fontWeight:500}}>Remove Photo</button>}
+        </div>
+      </div>
+    </Section>
+    <Section><SLabel>Name</SLabel><div style={{padding:"0 16px 14px"}}><SInput value={f.name} onChange={e=>s("name",e.target.value)} placeholder="e.g. Sony FX6 or Canon R5C Kit"/></div></Section>
     <Section>
       <div style={{padding:"14px 16px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
         <div><div style={{fontSize:15,fontWeight:600,color:"#1C1C1E"}}>This is a kit</div><div style={{fontSize:12,color:"#8E8E93",marginTop:2}}>Group multiple items that go out together</div></div>
